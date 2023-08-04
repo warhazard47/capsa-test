@@ -3,20 +3,19 @@ using UnityEngine.UI;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
-using System;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
 	public GameObject resultPanel;
 
-	public Image announcer;
-	public Text notifier;
+	public TextMeshProUGUI notifierText;
 	public TextMeshProUGUI popupText;
 
 	public Card prefabs;
 	public List<Player> players;
 
-	List<ComboType> tricks = new List<ComboType>();
+	List<ComboType> combo = new List<ComboType>();
 
 	int nextTurnPlayer;
 	int lastTurnPlayer;
@@ -32,21 +31,17 @@ public class GameManager : MonoBehaviour
 		resultPanel.SetActive(true);
 
 		resultPanel = resultPanel.transform.GetChild(0).gameObject;
-		var p = resultPanel.transform.Find("Player 1");
+		var p = resultPanel.transform.Find("You");
 		p.transform.Find("Card").GetComponent<Text>().text = players[0].Cards.Count.ToString();
-		p.transform.Find("Points").GetComponent<Text>().text = GetPoint(0).ToString();
 
 		p = resultPanel.transform.Find("Player 2");
 		p.transform.Find("Card").GetComponent<Text>().text = players[1].Cards.Count.ToString();
-		p.transform.Find("Points").GetComponent<Text>().text = GetPoint(1).ToString();
 
 		p = resultPanel.transform.Find("Player 3");
 		p.transform.Find("Card").GetComponent<Text>().text = players[2].Cards.Count.ToString();
-		p.transform.Find("Points").GetComponent<Text>().text = GetPoint(2).ToString();
 
 		p = resultPanel.transform.Find("Player 4");
 		p.transform.Find("Card").GetComponent<Text>().text = players[3].Cards.Count.ToString();
-		p.transform.Find("Points").GetComponent<Text>().text = GetPoint(3).ToString();
 
 		resultPanel = resultPanel.transform.parent.gameObject;
 	}
@@ -125,20 +120,14 @@ public class GameManager : MonoBehaviour
 		while (time > 0)
 		{
 			time -= Time.deltaTime;
-			if (time < 2f)
-			{
-				var color = announcer.color;
-				color.a -= Time.deltaTime / 2f;
-				announcer.color = color;
-			}
 			yield return null;
 		}
-		announcer.color = Color.clear;
+		popupText.text = "";
 	}
 
 	public void NotifyMessage(string message)
 	{
-		notifier.text = message;
+		notifierText.text = message;
 		if (IsInvoking("ClearNotification"))
 			CancelInvoke("ClearNotification");
 		Invoke("ClearNotification", 2f);
@@ -146,14 +135,14 @@ public class GameManager : MonoBehaviour
 
 	void ClearNotification()
 	{
-		notifier.text = "";
+		notifierText.text = "";
 	}
 
 	public ComboType LastTrick
 	{
 		get
 		{
-			return tricks.Count > 0 ? tricks[tricks.Count - 1] : null;
+			return combo.Count > 0 ? combo[combo.Count - 1] : null;
 		}
 	}
 
@@ -177,7 +166,6 @@ public class GameManager : MonoBehaviour
 
     void Start()
 	{
-		// Initialize cards
 		Card[] allCard = new Card[52];
 		for (int i = 0; i < Card.numberOrder.Length; ++i)
 		{
@@ -203,7 +191,6 @@ public class GameManager : MonoBehaviour
 		}
 		new System.Random().Shuffle(allCard);
 
-		// Initialize players
 		var set = new List<Card>();
 		set.AddRange(allCard);
 		for (int i = 0; i < players.Count; ++i)
@@ -223,7 +210,6 @@ public class GameManager : MonoBehaviour
 
 	void OnBeginTrick()
 	{
-		// Reset all player state
 		for (int i = 0; i < players.Count; ++i)
 		{
 			players[i].OnTurnEnd();
@@ -233,21 +219,19 @@ public class GameManager : MonoBehaviour
 		passPlayer = 0;
 		nextTurnPlayer = lastTurnPlayer;
 
-		// Begin Turn
 		NextTurn();
 	}
 
 	void OnEndTrick()
 	{
-		// Empty Cards
-		for (int i = 0; i < tricks.Count; ++i)
+		for (int i = 0; i < combo.Count; ++i)
 		{
-			for (int c = 0; c < tricks[i].Cards.Count; ++c)
+			for (int c = 0; c < combo[i].Cards.Count; ++c)
 			{
-				Destroy(tricks[i].Cards[c].gameObject);
+				Destroy(combo[i].Cards[c].gameObject);
 			}
 		}
-		tricks.Clear();
+		combo.Clear();
 
 		OnBeginTrick();
 	}
@@ -257,7 +241,6 @@ public class GameManager : MonoBehaviour
 		var current = CurrentPlayer;
 		players[current].OnTurnEnd();
 
-		// Stop game if one player already spent all his cards
 		if (players[current].Cards.Count == 0)
 		{
 			OnGameOver();
@@ -276,7 +259,7 @@ public class GameManager : MonoBehaviour
 
 	public void Pass()
 	{
-		if (tricks.Count > 0) ++passPlayer;
+		if (combo.Count > 0) ++passPlayer;
 
 		if (players.Count - passPlayer > 1)
 			NextTurn();
@@ -310,10 +293,9 @@ public class GameManager : MonoBehaviour
 			return false;
 		}
 
-		// Initialize Tricks if still empty
-		if (tricks.Count == 0)
+		if (combo.Count == 0)
 		{
-			tricks.Add(hand);
+			combo.Add(hand);
 			lastTurnPlayer = nextTurnPlayer == 0 ? players.Count - 1 : nextTurnPlayer - 1;
 			TakeCards();
 			NextTurn();
@@ -321,14 +303,13 @@ public class GameManager : MonoBehaviour
 		}
 		else
 		{
-			var last = tricks[tricks.Count - 1];
+			var last = combo[combo.Count - 1];
 
 			if (hand.Combination <= ComboType.CombinationType.Triple && last.Combination <= ComboType.CombinationType.Triple)
 			{
-				// Single, Pair or Triple rule
 				if (hand.Combination == last.Combination && hand.Key > last.Key)
 				{
-					tricks.Add(hand);
+					combo.Add(hand);
 					lastTurnPlayer = nextTurnPlayer == 0 ? players.Count - 1 : nextTurnPlayer - 1;
 					TakeCards();
 					NextTurn();
@@ -337,10 +318,9 @@ public class GameManager : MonoBehaviour
 			}
 			else if (hand.Combination > ComboType.CombinationType.Triple && last.Combination > ComboType.CombinationType.Triple)
 			{
-				// 5-card hand
 				if (hand > last)
 				{
-					tricks.Add(hand);
+					combo.Add(hand);
 					lastTurnPlayer = nextTurnPlayer == 0 ? players.Count - 1 : nextTurnPlayer - 1;
 					TakeCards();
 					NextTurn();
@@ -350,6 +330,11 @@ public class GameManager : MonoBehaviour
 			NotifyMessage("Please Check Your Cards!");
 			return false;
 		}
+	}
+
+	public void PlayAgain()
+    {
+		SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 0);
 	}
 }
 

@@ -69,10 +69,12 @@ public class Card : MonoBehaviour, IComparable<Card>
 		if (rt.anchoredPosition == Vector2.zero)
 		{
 			rt.anchoredPosition = new Vector2(0, 20);
+			Player.OnCardMarked(this);
 		}
 		else
 		{
 			rt.anchoredPosition = Vector2.zero;
+			Player.OnCardUnmarked(this);
 		}
 	}
 
@@ -81,10 +83,12 @@ public class Card : MonoBehaviour, IComparable<Card>
 		if (flag)
 		{
 			rt.anchoredPosition = new Vector2(0, 20);
+			Player.OnCardMarked(this);
 		}
 		else
 		{
 			rt.anchoredPosition = Vector2.zero;
+			Player.OnCardUnmarked(this);
 		}
 	}
 
