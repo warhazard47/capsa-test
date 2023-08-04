@@ -22,6 +22,8 @@ public class Player : MonoBehaviour
 	public GameObject passIndicator;
 	public TextMeshProUGUI labelTimerText;
 	public TextMeshProUGUI labelCountText;
+	public TextMeshProUGUI statusText;
+	public Shortcut shortcut;
 
 	public List<Card> straightSet = new List<Card>();
 	public List<Card> flushtSet = new List<Card>();
@@ -73,6 +75,7 @@ public class Player : MonoBehaviour
 		if (passIndicator)
 			passIndicator.SetActive(false);
 
+		statusText.gameObject.SetActive(true);
 		var LastTrick = GameManager.instance.LastTrick;
 		if (LastTrick != null)
 		{
@@ -95,7 +98,7 @@ public class Player : MonoBehaviour
 			time -= (Time.time - lastUpdateTime);
 			lastUpdateTime = Time.time;
 			TimeLeft = time;
-
+			
 			if (Artificial && !isAnalyzing)
 			{
 				if (hands.Count > 0)
@@ -112,14 +115,15 @@ public class Player : MonoBehaviour
 				}
 			}
 		}
+
+
 		if (!Artificial && GameManager.instance.IsFirstTurn)
 		{
 			AutoDeal();
 		}
 		else
 		{
-			// Timeout
-			Pass();
+			Skip();
 		}
 	}
 
@@ -130,17 +134,19 @@ public class Player : MonoBehaviour
 
 		if (panel)
 			panel.SetActive(false);
-
+		if (shortcut)
+			shortcut.Interactable = false;
 		if (passIndicator)
 			passIndicator.SetActive(false);
+		statusText.gameObject.SetActive(false);
 	}
 
 	public void AutoDeal()
 	{
-		Deal(Hint);
+		Submit(Hint);
 	}
 
-	public void Deal(List<Card> dealCards)
+	public void Submit(List<Card> dealCards)
 	{
 		if (dealCards.Count == 0)
 			return;
@@ -148,7 +154,7 @@ public class Player : MonoBehaviour
 		ComboType hand = ComboType.Make(dealCards);
 		if (GameManager.instance.Deal(hand))
 		{
-			OnDealSuccess();
+			OnSubmitSuccess();
 		}
 	}
 
@@ -156,18 +162,144 @@ public class Player : MonoBehaviour
 	{
 		if (GameManager.instance.Deal(hand))
 		{
-			OnDealSuccess();
+			OnSubmitSuccess();
 		}
 	}
 
-	public void Pass()
+	public void Skip()
 	{
 		isPass = true;
 		GameManager.instance.Pass();
-		OnPass();
+		OnSkip();
 	}
 
-	// Helper Events for controller
+	IEnumerator Analyze()
+	{
+		isAnalyzing = true;
+		hands.Clear();
+		List<ComboType> result;
+
+		// One analysis each frame
+		switch (analyzeCombination)
+		{
+			case ComboType.CombinationType.Invalid:
+				goto case ComboType.CombinationType.One;
+			case ComboType.CombinationType.One:
+				hands.AddRange(One.instance.LazyEvaluator(cards, false, analyzeFilter));
+
+				if (analyzeCombination == ComboType.CombinationType.Invalid)
+					goto case ComboType.CombinationType.Pair;
+				break;
+			case ComboType.CombinationType.Pair:
+				hands.AddRange(Pair.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter));
+
+				if (analyzeCombination == ComboType.CombinationType.Invalid)
+					goto case ComboType.CombinationType.Triple;
+				break;
+			case ComboType.CombinationType.Triple:
+				hands.AddRange(Triple.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter));
+
+				if (analyzeCombination == ComboType.CombinationType.Invalid)
+					goto case ComboType.CombinationType.Straight;
+				break;
+			case ComboType.CombinationType.Straight:
+				result = Straight.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter);
+				hands.AddRange(result);
+				if (result.Count > 0)
+					SetStraight = result[result.Count - 1].Cards;
+				if (!analyzeAllMatch && hands.Count > 0)
+					break;
+				yield return null;
+				goto case ComboType.CombinationType.Flush;
+			case ComboType.CombinationType.Flush:
+				result = Flush.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter);
+				hands.AddRange(result);
+				if (result.Count > 0)
+					SetFlush = result[result.Count - 1].Cards;
+				if (!analyzeAllMatch && hands.Count > 0)
+					break;
+				yield return null;
+				goto case ComboType.CombinationType.FullHouse;
+			case ComboType.CombinationType.FullHouse:
+				result = FullHouse.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter);
+				hands.AddRange(result);
+				if (result.Count > 0)
+					SetFullHouse = result[result.Count - 1].Cards;
+				if (!analyzeAllMatch && hands.Count > 0)
+					break;
+				yield return null;
+				goto case ComboType.CombinationType.FourOfAKind;
+			case ComboType.CombinationType.FourOfAKind:
+				result = FourOfAKind.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter);
+				hands.AddRange(result);
+				if (result.Count > 0)
+					SetFourOfAKind = result[result.Count - 1].Cards;
+				if (!analyzeAllMatch && hands.Count > 0)
+					break;
+				yield return null;
+				goto case ComboType.CombinationType.StraightFlush;
+			case ComboType.CombinationType.StraightFlush:
+				result = StraightFlush.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter);
+				hands.AddRange(result);
+				if (result.Count > 0)
+					SetStraightFlush = result[result.Count - 1].Cards;
+				if (!analyzeAllMatch && hands.Count > 0)
+					break;
+				yield return null;
+				goto case ComboType.CombinationType.RoyalFlush;
+			case ComboType.CombinationType.RoyalFlush:
+				result = RoyalFlush.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter);
+				hands.AddRange(result);
+				if (result.Count > 0)
+					SetRoyalFlush = result[result.Count - 1].Cards;
+				if (!analyzeAllMatch && hands.Count > 0)
+					break;
+				yield return null;
+				goto case ComboType.CombinationType.Dragon;
+			case ComboType.CombinationType.Dragon:
+				result = Dragon.instance.LazyEvaluator(cards, analyzeAllMatch, analyzeFilter);
+				hands.AddRange(result);
+				if (result.Count > 0)
+					SetDragon = result[result.Count - 1].Cards;
+				break;
+		}
+
+		if (hands.Count > 0)
+		{
+			yield return null;
+			var curr = hands[0];
+			if (hands[hands.Count - 1].Combination == ComboType.CombinationType.Dragon)
+			{
+				curr = hands[hands.Count - 1];
+			}
+			else
+			{
+				for (int i = 0; i < hands.Count; ++i)
+				{
+					if (GameManager.instance.IsFirstTurn
+						&& !(hands[i].Cards[0].Nominal == "3" && hands[i].Cards[0].elements == Card.Elements.Diamond))
+						continue;
+					if (curr.Combination != hands[i].Combination)
+						curr = hands[i];
+					if (curr.Combination >= ComboType.CombinationType.Straight)
+						break;
+				}
+			}
+			Hint = curr.Cards;
+		}
+		else
+		{
+			Hint = null;
+		}
+
+		isAnalyzing = false;
+		analyzeFilter = null;
+		analyzeCombination = ComboType.CombinationType.Invalid;
+	}
+
+
+
+
 	public void OnCardMarked(Card card)
 	{
 		markedCards.Add(card);
@@ -181,18 +313,18 @@ public class Player : MonoBehaviour
 	}
 
 
-	public void OnDeal()
+	public void OnSubmit()
 	{
-		Deal(markedCards);
+		Submit(markedCards);
 	}
 
-	public void OnDealSuccess()
+	public void OnSubmitSuccess()
 	{
 		markedCards.Clear();
 		TotalCard = Cards.Count;
 	}
 
-	public void OnPass()
+	public void OnSkip()
 	{
 		passIndicator.SetActive(IsPass);
 	}
@@ -251,7 +383,6 @@ public class Player : MonoBehaviour
 		if (set == null)
 			return;
 
-		// Deselect all
 		if (reset)
 		{
 			for (int i = 0; i < Cards.Count; ++i)
@@ -260,7 +391,6 @@ public class Player : MonoBehaviour
 			}
 		}
 
-		// Select new card
 		for (int i = 0; i < set.Count; ++i)
 		{
 			set[i].ToggleSelect();
@@ -283,74 +413,93 @@ public class Player : MonoBehaviour
 
 	public int TotalCard
 	{
-		set { if (labelCountText) labelCountText.text = "" + value; }
+		set
+		{
+			if (labelCountText)
+			{
+				labelCountText.text = "" + value;
+			}
+		}
 	}
 
 	public float TimeLeft
 	{
-		set { if (labelTimerText) labelTimerText.text = "" + Mathf.CeilToInt(value); }
+		set
+		{
+			if (labelTimerText)
+			{
+				labelTimerText.text = "" + Mathf.CeilToInt(value);
+			}
+		}
 	}
 
-	public List<Card> Straight
+	public List<Card> SetStraight
 	{
 		get { return straightSet; }
 		set
 		{
 			straightSet = value;
+			if (shortcut) shortcut.straight.interactable = true;
 		}
 	}
 
-	public List<Card> Flush
+	public List<Card> SetFlush
 	{
 		get { return flushtSet; }
 		set
 		{
 			flushtSet = value;
+			if (shortcut) shortcut.flush.interactable = true;
 		}
 	}
 
-	public List<Card> FullHouse
+	public List<Card> SetFullHouse
 	{
 		get { return fullHousetSet; }
 		set
 		{
 			fullHousetSet = value;
+			if (shortcut) shortcut.fullHouse.interactable = true;
 		}
 	}
 
-	public List<Card> FourOfAKind
+	public List<Card> SetFourOfAKind
 	{
 		get { return fourOfAKindSet; }
 		set
 		{
 			fourOfAKindSet = value;
+			if (shortcut) shortcut.fourOfAKind.interactable = true;
 		}
 	}
 
-	public List<Card> StraightFlush
+	public List<Card> SetStraightFlush
 	{
 		get { return straightFlushSet; }
 		set
 		{
 			straightFlushSet = value;
+			if (shortcut) shortcut.straightFlush.interactable = true;
 		}
 	}
 
-	public List<Card> RoyalFlush
+	public List<Card> SetRoyalFlush
 	{
 		get { return royalFlushSet; }
 		set
 		{
 			royalFlushSet = value;
+			if (shortcut) shortcut.royalFlush.interactable = true;
 		}
 	}
 
-	public List<Card> Dragon
+	public List<Card> SetDragon
 	{
 		get { return dragonSet; }
 		set
 		{
 			dragonSet = value;
+			if (shortcut) shortcut.dragon.interactable = true;
 		}
 	}
 
