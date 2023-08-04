@@ -14,7 +14,7 @@ public class Card : MonoBehaviour, IComparable<Card>
 	}
 	public static string[] numberOrder = { "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2" };
 
-	PlayerController player;
+	Player player;
 	public Elements elements;
 	public Button button;
 	public TextMeshProUGUI numberText;
@@ -23,12 +23,12 @@ public class Card : MonoBehaviour, IComparable<Card>
 	string _nominal;
 	RectTransform rt;
 
-    public PlayerController Player
+    public Player Player
     {
         get
         {
             if (player == null)
-                player = GetComponentInParent<PlayerController>();
+                player = GetComponentInParent<Player>();
             return player;
         }
     }

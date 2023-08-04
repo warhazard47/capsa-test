@@ -480,8 +480,6 @@ public class One : Inheritor<One>
 }
 public class Triple : Inheritor<Triple>
 {
-
-
 	public override void Evaluate(int index)
 	{
 		// Max index is (n-1) - 2, don't evaluate
@@ -534,7 +532,6 @@ public class Pair : Inheritor<Pair>
 
 public class FourOfAKind : Inheritor<FourOfAKind>
 {
-	List<Card> card = new List<Card>();
 	public override void Evaluate(int index)
 	{
 		base.Evaluate(index);
